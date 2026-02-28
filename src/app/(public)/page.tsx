@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { Search } from "lucide-react";
 import { useSeminars } from "@/hooks/use-seminars";
 import { SeminarList } from "@/components/seminars/seminar-list";
@@ -17,6 +18,7 @@ const TYPE_FILTERS = [
 ];
 
 export default function HomePage() {
+  const { data: session } = useSession();
   const [typeFilter, setTypeFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -56,12 +58,21 @@ export default function HomePage() {
             >
               세미나 둘러보기
             </a>
-            <a
-              href="/register"
-              className="inline-flex items-center justify-center rounded-md border border-white/30 px-6 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
-            >
-              회원 가입
-            </a>
+            {session ? (
+              <a
+                href="/my"
+                className="inline-flex items-center justify-center rounded-md border border-white/30 px-6 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+              >
+                마이페이지
+              </a>
+            ) : (
+              <a
+                href="/register"
+                className="inline-flex items-center justify-center rounded-md border border-white/30 px-6 py-3 text-sm font-medium text-white hover:bg-white/10 transition-colors"
+              >
+                회원 가입
+              </a>
+            )}
           </div>
         </div>
       </section>
