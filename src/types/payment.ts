@@ -64,6 +64,7 @@ export interface Payment {
   paymentKey?: string | null;
   orderId?: string | null;
   method?: string | null;
+  depositorName?: string | null;
 
   amount: number;
   status: PaymentStatus;

@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }
 
+  // DB에 입금자명 저장
+  await prisma.payment.update({
+    where: { orderId },
+    data: { depositorName: depositorName.trim() },
+  });
+
   // 페이액션 주문 재생성 (입금자명 변경)
   const result = await createOrder({
     orderNumber: orderId,
@@ -49,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   if (!result.success) {
     return NextResponse.json(
-      { error: result.message || "입금자명 업데이트에 실패했습니다." },
+      { error: result.message || "입금자명 업데이트에 실패했습니다. (DB에는 저장됨)" },
       { status: 500 },
     );
   }

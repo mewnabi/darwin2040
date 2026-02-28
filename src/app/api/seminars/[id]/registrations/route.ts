@@ -57,6 +57,7 @@ export async function GET(
         select: {
           id: true,
           orderId: true,
+          depositorName: true,
           amount: true,
           status: true,
           method: true,

@@ -205,6 +205,7 @@ export async function POST(
           orderId: orderId,
           amount: priceResult.finalPrice,
           method: "BANK_TRANSFER",
+          depositorName: user.name || null,
           status: "PENDING",
         },
       });

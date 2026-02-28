@@ -409,6 +409,7 @@ model Payment {
   paymentKey        String?       @unique @map("tossPaymentKey")
   orderId           String?       @unique @map("tossOrderId")
   method            String?       // BANK_TRANSFER 등
+  depositorName     String?       // 실제 입금자명
 
   amount            Int
   status            PaymentStatus @default(PENDING)

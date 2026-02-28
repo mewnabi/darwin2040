@@ -57,6 +57,7 @@ interface RegistrationData {
     payment: {
       id: string;
       orderId: string | null;
+      depositorName: string | null;
       amount: number;
       status: string;
       method: string | null;
@@ -212,6 +213,8 @@ export default function RegistrationsPage({
                 <TableHead>회원</TableHead>
                 <TableHead>등급</TableHead>
                 <TableHead>신청 상태</TableHead>
+                <TableHead>주문번호</TableHead>
+                <TableHead>입금자명</TableHead>
                 <TableHead>결제 상태</TableHead>
                 <TableHead className="text-right">결제 금액</TableHead>
                 <TableHead>결제일시</TableHead>
@@ -245,6 +248,22 @@ export default function RegistrationsPage({
                       <span className="text-xs text-muted-foreground block mt-1">
                         대기 #{reg.waitlistNumber}
                       </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {reg.payment?.orderId ? (
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {reg.payment.orderId}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {reg.payment?.depositorName ? (
+                      <span className="text-sm">{reg.payment.depositorName}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
                   <TableCell>
