@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Calendar, MapPin, Loader2, User, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Building2, Copy, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -241,6 +241,20 @@ function RegistrationCard({
 }) {
   const seminar = registration.seminar;
   const canCancel = ACTIVE_STATUSES.includes(registration.status);
+  const isPendingPayment =
+    registration.status === "PENDING" &&
+    registration.payment?.status === "PENDING";
+
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText("110-210-910967");
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard API 미지원
+    }
+  };
 
   return (
     <div className="rounded-xl border bg-card p-5">
@@ -323,6 +337,53 @@ function RegistrationCard({
           )}
         </div>
       </div>
+
+      {/* 입금 대기 알럿 */}
+      {isPendingPayment && (
+        <div className="mt-4 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+            <p className="text-sm font-medium text-yellow-800">
+              입금이 확인되지 않았습니다. 아래 계좌로 입금해주세요.
+            </p>
+          </div>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-yellow-700 flex items-center gap-1.5">
+                <Building2 className="h-3.5 w-3.5" />
+                입금 계좌
+              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-yellow-900">신한은행 110-210-910967 (박지희)</span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className="inline-flex items-center text-xs text-yellow-700 hover:text-yellow-900 transition-colors"
+                >
+                  {copied ? (
+                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-yellow-700">입금 금액</span>
+              <span className="font-bold text-yellow-900">{formatCurrency(registration.finalPrice)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-yellow-700">입금자명</span>
+              <span className="font-bold text-yellow-900">
+                {registration.payment?.depositorName || "—"}
+              </span>
+            </div>
+            <p className="text-xs text-yellow-600 mt-1">
+              반드시 위 입금자명으로 송금해주세요. 입금 후 자동으로 확인됩니다.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
