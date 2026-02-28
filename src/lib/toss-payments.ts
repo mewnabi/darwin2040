@@ -1,7 +1,7 @@
 // 토스페이먼츠 결제 유틸리티
 
 export const TOSS_PAYMENTS_CLIENT_KEY =
-  process.env.TOSS_PAYMENTS_CLIENT_KEY || "";
+  process.env.NEXT_PUBLIC_TOSS_PAYMENTS_CLIENT_KEY || "";
 export const TOSS_PAYMENTS_SECRET_KEY =
   process.env.TOSS_PAYMENTS_SECRET_KEY || "";
 
