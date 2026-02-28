@@ -60,9 +60,9 @@ export interface Payment {
   registrationId: string;
   seminarId: string;
 
-  // 토스페이먼츠
-  tossPaymentKey?: string | null;
-  tossOrderId?: string | null;
+  // 결제 정보
+  paymentKey?: string | null;
+  orderId?: string | null;
   method?: string | null;
 
   amount: number;
@@ -107,12 +107,6 @@ export interface PricePreview {
 }
 
 // ─── Payment API DTOs ────────────────────────────
-
-export interface PaymentConfirmRequest {
-  paymentKey: string;
-  orderId: string;
-  amount: number;
-}
 
 export interface PaymentRefundRequest {
   registrationId: string;

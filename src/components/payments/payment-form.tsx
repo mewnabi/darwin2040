@@ -1,147 +1,122 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { loadTossPayments } from "@tosspayments/payment-sdk";
-import type { TossPaymentsInstance } from "@tosspayments/payment-sdk";
-import { Loader2, CreditCard, Building2, Smartphone } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Building2, Copy, CheckCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface PaymentFormProps {
-  clientKey: string;
-  orderId: string;
   amount: number;
   orderName: string;
-  customerEmail?: string;
   customerName?: string;
   seminarId: string;
 }
 
-type PaymentMethod = "카드" | "계좌이체" | "가상계좌";
-
-const METHODS: { value: PaymentMethod; label: string; icon: typeof CreditCard }[] = [
-  { value: "카드", label: "카드 결제", icon: CreditCard },
-  { value: "계좌이체", label: "계좌이체", icon: Building2 },
-  { value: "가상계좌", label: "가상계좌", icon: Smartphone },
-];
+const BANK_INFO = {
+  bank: "신한은행",
+  account: "110-210-910967",
+  holder: "박지희",
+} as const;
 
 export function PaymentForm({
-  clientKey,
-  orderId,
   amount,
   orderName,
-  customerEmail,
   customerName,
   seminarId,
 }: PaymentFormProps) {
-  const [tossPayments, setTossPayments] = useState<TossPaymentsInstance | null>(null);
-  const [isReady, setIsReady] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>("카드");
+  const router = useRouter();
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    async function init() {
-      try {
-        const tp = await loadTossPayments(clientKey);
-        setTossPayments(tp);
-        setIsReady(true);
-      } catch (err) {
-        console.error("토스페이먼츠 초기화 오류:", err);
-        setError("결제 모듈을 불러오는데 실패했습니다.");
-      }
-    }
-
-    if (clientKey && amount > 0) {
-      init();
-    }
-  }, [clientKey, amount]);
-
-  const handlePayment = async () => {
-    if (!tossPayments) return;
-    setIsLoading(true);
-    setError(null);
-
+  const handleCopyAccount = async () => {
     try {
-      await tossPayments.requestPayment(selectedMethod, {
-        amount,
-        orderId,
-        orderName,
-        customerEmail: customerEmail || undefined,
-        customerName: customerName || undefined,
-        successUrl: `${window.location.origin}/member/seminars/${seminarId}/payment-result?success=true`,
-        failUrl: `${window.location.origin}/member/seminars/${seminarId}/payment-result?fail=true`,
-      });
-    } catch (err) {
-      const error = err as { code?: string; message?: string };
-      if (error.code === "USER_CANCEL") {
-        setError("결제가 취소되었습니다.");
-      } else {
-        setError(error.message || "결제 중 오류가 발생했습니다.");
-      }
-      setIsLoading(false);
+      await navigator.clipboard.writeText(BANK_INFO.account);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard API 미지원 시 무시
     }
   };
-
-  if (error && !isReady) {
-    return (
-      <div className="p-6 text-center">
-        <p className="text-red-500 text-sm">{error}</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
       <div className="rounded-xl border bg-card p-6">
-        <h3 className="text-lg font-bold text-foreground mb-2">결제 수단 선택</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          결제 금액: <span className="font-bold text-gold-600">{formatCurrency(amount)}</span>
-        </p>
+        <div className="flex items-center gap-2 mb-4">
+          <Building2 className="h-5 w-5 text-navy-500" />
+          <h3 className="text-lg font-bold text-foreground">무통장입금 안내</h3>
+        </div>
 
-        {!isReady ? (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-6 w-6 animate-spin text-navy-400" />
-            <span className="ml-2 text-sm text-muted-foreground">결제 모듈 로딩 중...</span>
+        <div className="space-y-3">
+          {/* 은행 */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">입금 은행</span>
+            <span className="font-medium text-foreground">{BANK_INFO.bank}</span>
           </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {METHODS.map(({ value, label, icon: Icon }) => (
+
+          {/* 계좌번호 */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">계좌번호</span>
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-foreground">{BANK_INFO.account}</span>
               <button
-                key={value}
                 type="button"
-                onClick={() => setSelectedMethod(value)}
-                className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors ${
-                  selectedMethod === value
-                    ? "border-navy-500 bg-navy-50 text-navy-700"
-                    : "border-input hover:border-navy-300 text-muted-foreground"
-                }`}
+                onClick={handleCopyAccount}
+                className="inline-flex items-center gap-1 text-xs text-navy-500 hover:text-navy-700 transition-colors"
               >
-                <Icon className="h-6 w-6" />
-                <span className="text-xs font-medium">{label}</span>
+                {copied ? (
+                  <CheckCircle className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {copied ? "복사됨" : "복사"}
               </button>
-            ))}
+            </div>
           </div>
-        )}
+
+          {/* 예금주 */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">예금주</span>
+            <span className="font-medium text-foreground">{BANK_INFO.holder}</span>
+          </div>
+
+          <div className="border-t my-3" />
+
+          {/* 입금 금액 */}
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">입금 금액</span>
+            <span className="text-lg font-bold text-gold-600">{formatCurrency(amount)}</span>
+          </div>
+
+          {/* 입금자명 */}
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-muted-foreground">입금자명</span>
+            <span className="font-medium text-foreground">{customerName || "-"}</span>
+          </div>
+        </div>
+
+        {/* 세미나명 */}
+        <div className="mt-4 p-3 rounded-lg bg-navy-50 text-sm text-navy-700">
+          <span className="font-medium">세미나:</span> {orderName}
+        </div>
       </div>
 
-      {error && (
-        <p className="text-sm text-red-500 text-center">{error}</p>
-      )}
+      {/* 안내 메시지 */}
+      <div className="rounded-xl border border-gold-200 bg-gold-50 p-4">
+        <p className="text-sm text-gold-800 font-medium mb-1">
+          입금 후 자동으로 확인됩니다
+        </p>
+        <p className="text-xs text-gold-700">
+          위 계좌로 정확한 금액을 입금해주세요. 입금자명이 회원 이름과 일치해야 자동 확인이 가능합니다.
+          입금 확인까지 몇 분 소요될 수 있습니다.
+        </p>
+      </div>
 
+      {/* 확인 버튼 */}
       <button
         type="button"
-        onClick={handlePayment}
-        disabled={!isReady || isLoading}
-        className="w-full py-3 rounded-lg bg-gold-500 text-navy-900 font-medium text-sm hover:bg-gold-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        onClick={() => router.push(`/member/seminars/${seminarId}/payment-result`)}
+        className="w-full py-3 rounded-lg bg-gold-500 text-navy-900 font-medium text-sm hover:bg-gold-400 transition-colors"
       >
-        {isLoading ? (
-          <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            결제 처리 중...
-          </>
-        ) : (
-          `${formatCurrency(amount)} 결제하기`
-        )}
+        입금 안내 확인했습니다
       </button>
     </div>
   );

@@ -1,14 +1,265 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Users, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { StatusBadge } from "@/components/common/status-badge";
+import { PaymentStatusBadge } from "@/components/payments/payment-status";
+import { TableSkeleton } from "@/components/common/loading-skeleton";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
+import {
+  REGISTRATION_STATUS_LABELS,
+  MEMBER_TIER_LABELS,
+} from "@/constants/member-tiers";
+
+interface RegistrationData {
+  seminar: {
+    id: string;
+    title: string;
+    startAt: string;
+    maxCapacity: number;
+  };
+  registrations: Array<{
+    id: string;
+    status: string;
+    waitlistNumber: number | null;
+    originalPrice: number;
+    discountAmount: number;
+    finalPrice: number;
+    promotionCode: string | null;
+    registeredAt: string;
+    cancelledAt: string | null;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      phone: string | null;
+      tier: string;
+    };
+    payment: {
+      id: string;
+      orderId: string | null;
+      amount: number;
+      status: string;
+      method: string | null;
+      paidAt: string | null;
+      refundAmount: number;
+      refundedAt: string | null;
+    } | null;
+  }>;
+  stats: {
+    total: number;
+    pending: number;
+    paid: number;
+    waitlisted: number;
+    promoted: number;
+    cancelled: number;
+    refunded: number;
+    noShow: number;
+  };
+}
+
 export default function RegistrationsPage({
   params,
 }: {
   params: { id: string };
 }) {
+  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  const { data, isLoading } = useQuery<RegistrationData>({
+    queryKey: ["seminar-registrations", params.id, statusFilter],
+    queryFn: async () => {
+      const qs = statusFilter ? `?status=${statusFilter}` : "";
+      const res = await fetch(`/api/seminars/${params.id}/registrations${qs}`);
+      if (!res.ok) throw new Error("신청자 목록을 불러올 수 없습니다.");
+      return res.json();
+    },
+  });
+
+  const statCards = data
+    ? [
+        { label: "전체", value: data.stats.total, icon: Users, color: "text-foreground" },
+        { label: "입금 대기", value: data.stats.pending, icon: Clock, color: "text-yellow-600" },
+        { label: "결제 완료", value: data.stats.paid, icon: CheckCircle, color: "text-green-600" },
+        { label: "대기자", value: data.stats.waitlisted, icon: AlertTriangle, color: "text-blue-600" },
+        { label: "취소/환불", value: data.stats.cancelled + data.stats.refunded, icon: XCircle, color: "text-red-600" },
+      ]
+    : [];
+
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">신청자 관리</h1>
-      <p className="text-muted-foreground">
-        신청자 관리 — 개발 예정 (ID: {params.id})
-      </p>
+      {/* 헤더 */}
+      <div className="mb-6">
+        <Link
+          href={`/admin/seminars/${params.id}`}
+          className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1 transition-colors mb-3"
+        >
+          <ArrowLeft className="h-4 w-4" /> 세미나 상세
+        </Link>
+        <h1 className="text-2xl font-bold">신청자 관리</h1>
+        {data?.seminar && (
+          <p className="text-muted-foreground mt-1">
+            {data.seminar.title} &middot; {formatDateTime(data.seminar.startAt)}
+          </p>
+        )}
+      </div>
+
+      {/* 통계 카드 */}
+      {data && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+          {statCards.map((card) => (
+            <Card key={card.label}>
+              <CardContent className="p-4 flex items-center gap-3">
+                <card.icon className={`h-5 w-5 ${card.color}`} />
+                <div>
+                  <p className="text-xs text-muted-foreground">{card.label}</p>
+                  <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* 필터 */}
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-40">
+          <Select
+            value={statusFilter || "ALL"}
+            onValueChange={(v) => setStatusFilter(v === "ALL" ? "" : v)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="전체 상태" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">전체 상태</SelectItem>
+              {Object.entries(REGISTRATION_STATUS_LABELS).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {data && (
+          <p className="text-sm text-muted-foreground">
+            정원: {data.stats.paid + data.stats.pending}/{data.seminar.maxCapacity}명
+          </p>
+        )}
+      </div>
+
+      {/* 테이블 */}
+      {isLoading ? (
+        <TableSkeleton rows={8} />
+      ) : !data?.registrations.length ? (
+        <div className="text-center py-16 text-muted-foreground">
+          <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
+          <p>신청자가 없습니다.</p>
+        </div>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>회원</TableHead>
+                <TableHead>등급</TableHead>
+                <TableHead>신청 상태</TableHead>
+                <TableHead>결제 상태</TableHead>
+                <TableHead className="text-right">결제 금액</TableHead>
+                <TableHead>결제일시</TableHead>
+                <TableHead>신청일시</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.registrations.map((reg) => (
+                <TableRow key={reg.id}>
+                  <TableCell>
+                    <div>
+                      <p className="text-sm font-medium">{reg.user.name}</p>
+                      <p className="text-xs text-muted-foreground">{reg.user.email}</p>
+                      {reg.user.phone && (
+                        <p className="text-xs text-muted-foreground">{reg.user.phone}</p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-xs font-medium">
+                      {MEMBER_TIER_LABELS[reg.user.tier] || reg.user.tier}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge
+                      status={reg.status}
+                      label={REGISTRATION_STATUS_LABELS[reg.status] || reg.status}
+                    />
+                    {reg.waitlistNumber && (
+                      <span className="text-xs text-muted-foreground block mt-1">
+                        대기 #{reg.waitlistNumber}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {reg.payment ? (
+                      <div>
+                        <PaymentStatusBadge status={reg.payment.status} />
+                        {reg.payment.refundAmount > 0 && (
+                          <span className="text-xs text-red-500 block mt-1">
+                            환불: {formatCurrency(reg.payment.refundAmount)}
+                          </span>
+                        )}
+                      </div>
+                    ) : reg.finalPrice === 0 ? (
+                      <span className="text-xs text-muted-foreground">무료</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {reg.finalPrice === 0 ? "무료" : formatCurrency(reg.finalPrice)}
+                      </p>
+                      {reg.discountAmount > 0 && (
+                        <p className="text-xs text-red-500">
+                          -{formatCurrency(reg.discountAmount)}
+                        </p>
+                      )}
+                      {reg.promotionCode && (
+                        <p className="text-xs text-muted-foreground">
+                          프로모: {reg.promotionCode}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {reg.payment?.paidAt ? formatDateTime(reg.payment.paidAt) : "-"}
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {formatDateTime(reg.registeredAt)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

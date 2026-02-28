@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { cancelPayment } from "@/lib/toss-payments";
 import type { UserRole } from "@prisma/client";
 
 const ADMIN_ROLES: UserRole[] = ["SUPER_ADMIN", "ADMIN", "CHAPTER_LEAD"];
 
-// POST /api/payments/refund — 환불 처리
+// POST /api/payments/refund — 환불 처리 (무통장입금: DB 상태 업데이트, 실제 환불은 수동 계좌이체)
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -52,33 +51,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!payment.tossPaymentKey) {
-    return NextResponse.json(
-      { error: "토스 결제 키가 없습니다." },
-      { status: 400 },
-    );
-  }
-
-  // 토스 환불 API 호출
-  const result = await cancelPayment(
-    payment.tossPaymentKey,
-    reason,
-    cancelAmount,
-  );
-
-  if (!result.success) {
-    return NextResponse.json(
-      { error: result.message || "환불 처리에 실패했습니다." },
-      { status: 500 },
-    );
-  }
-
   // 전액환불 vs 부분환불 결정
   const actualRefundAmount = cancelAmount || payment.amount;
   const isFullRefund = actualRefundAmount >= payment.amount;
   const newPaymentStatus = isFullRefund ? "FULLY_REFUNDED" : "PARTIALLY_REFUNDED";
 
-  // DB 업데이트
+  // DB 업데이트 (실제 환불 이체는 관리자가 수동 처리)
   await prisma.$transaction([
     prisma.payment.update({
       where: { id: payment.id },
@@ -98,8 +76,8 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     message: isFullRefund
-      ? "전액 환불이 완료되었습니다."
-      : `${actualRefundAmount.toLocaleString()}원 환불이 완료되었습니다.`,
+      ? "전액 환불 처리되었습니다. 계좌이체로 환불을 진행해주세요."
+      : `${actualRefundAmount.toLocaleString()}원 환불 처리되었습니다. 계좌이체로 환불을 진행해주세요.`,
     refundAmount: actualRefundAmount,
   });
 }

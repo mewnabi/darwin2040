@@ -2,36 +2,10 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type {
-  PaymentConfirmRequest,
   PaymentRefundRequest,
   PaymentWithDetails,
   PaymentSummary,
 } from "@/types";
-
-// ─── 결제 확인 ───────────────────────────────────
-
-export function useConfirmPayment() {
-  const queryClient = useQueryClient();
-  return useMutation<{ success: boolean; message: string }, Error, PaymentConfirmRequest>({
-    mutationFn: async (data) => {
-      const res = await fetch("/api/payments/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.error || "결제 확인에 실패했습니다.");
-      }
-      return json;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["my-registrations"] });
-      queryClient.invalidateQueries({ queryKey: ["seminars"] });
-      queryClient.invalidateQueries({ queryKey: ["payments"] });
-    },
-  });
-}
 
 // ─── 환불 ────────────────────────────────────────
 

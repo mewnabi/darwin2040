@@ -256,7 +256,7 @@ export default function AdminPaymentsPage() {
                       paymentsData?.payments.map((payment) => (
                         <TableRow key={payment.id}>
                           <TableCell className="font-mono text-xs">
-                            {payment.tossOrderId || "-"}
+                            {payment.orderId || "-"}
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate">
                             {payment.registration.seminar.title}

@@ -9,7 +9,6 @@ import { useRegisterSeminar, usePricePreview } from "@/hooks/use-registrations";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime, formatCurrency } from "@/lib/utils";
-import { TOSS_PAYMENTS_CLIENT_KEY } from "@/lib/toss-payments";
 import { SEMINAR_TYPE_LABELS } from "@/constants/seminar-types";
 import { CardSkeleton } from "@/components/common/loading-skeleton";
 import { PaymentForm } from "@/components/payments/payment-form";
@@ -93,7 +92,7 @@ export default function SeminarRegisterPage({
             return;
           }
           // 유료 세미나: 결제 단계로 전환
-          if (reg.payment?.tossOrderId) {
+          if (reg.payment?.orderId) {
             setRegistrationData(reg);
             setPaymentStep(true);
           } else {
@@ -177,11 +176,8 @@ export default function SeminarRegisterPage({
         </div>
 
         <PaymentForm
-          clientKey={TOSS_PAYMENTS_CLIENT_KEY}
-          orderId={registrationData.payment.tossOrderId!}
           amount={registrationData.payment.amount}
           orderName={seminar.title}
-          customerEmail={user?.email || undefined}
           customerName={user?.name || undefined}
           seminarId={seminar.id}
         />

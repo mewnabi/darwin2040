@@ -1,110 +1,57 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, XCircle, Loader2, ArrowLeft } from "lucide-react";
-import { useConfirmPayment } from "@/hooks/use-payments";
+import { Clock, Building2 } from "lucide-react";
 
 export default function PaymentResultPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const searchParams = useSearchParams();
-  const confirmMutation = useConfirmPayment();
-  const [status, setStatus] = useState<"loading" | "success" | "fail">("loading");
-  const [message, setMessage] = useState("");
-
-  const isSuccess = searchParams.get("success") === "true";
-  const isFail = searchParams.get("fail") === "true";
-  const paymentKey = searchParams.get("paymentKey");
-  const orderId = searchParams.get("orderId");
-  const amount = searchParams.get("amount");
-
-  useEffect(() => {
-    if (isSuccess && paymentKey && orderId && amount) {
-      // 결제 확인 API 호출
-      confirmMutation.mutate(
-        {
-          paymentKey,
-          orderId,
-          amount: Number(amount),
-        },
-        {
-          onSuccess: () => {
-            setStatus("success");
-            setMessage("결제가 완료되었습니다.");
-          },
-          onError: (err) => {
-            setStatus("fail");
-            setMessage(err.message || "결제 확인에 실패했습니다.");
-          },
-        },
-      );
-    } else if (isFail) {
-      setStatus("fail");
-      const errorCode = searchParams.get("code");
-      const errorMessage = searchParams.get("message");
-      setMessage(
-        errorMessage || (errorCode === "USER_CANCEL" ? "결제가 취소되었습니다." : "결제에 실패했습니다."),
-      );
-    } else {
-      setStatus("fail");
-      setMessage("잘못된 접근입니다.");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  if (status === "loading") {
-    return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <Loader2 className="h-12 w-12 animate-spin text-navy-400 mb-4" />
-        <p className="text-lg font-medium text-foreground">결제 확인 중...</p>
-        <p className="text-sm text-muted-foreground mt-2">
-          잠시만 기다려주세요.
-        </p>
-      </div>
-    );
-  }
-
-  if (status === "success") {
-    return (
-      <div className="flex flex-col items-center justify-center py-24">
-        <CheckCircle className="h-16 w-16 text-green-500 mb-4" />
-        <h1 className="text-2xl font-bold text-foreground mb-2">결제 완료</h1>
-        <p className="text-muted-foreground mb-8">{message}</p>
-        <div className="flex gap-3">
-          <Link
-            href="/my"
-            className="inline-flex items-center justify-center rounded-lg bg-gold-500 text-navy-900 font-medium text-sm px-6 py-3 hover:bg-gold-400 transition-colors"
-          >
-            마이페이지로 이동
-          </Link>
-          <Link
-            href={`/seminars/${params.id}`}
-            className="inline-flex items-center justify-center rounded-lg border border-input bg-background text-sm font-medium px-6 py-3 hover:bg-accent transition-colors"
-          >
-            세미나 상세보기
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // fail
   return (
     <div className="flex flex-col items-center justify-center py-24">
-      <XCircle className="h-16 w-16 text-red-500 mb-4" />
-      <h1 className="text-2xl font-bold text-foreground mb-2">결제 실패</h1>
-      <p className="text-muted-foreground mb-8">{message}</p>
+      <div className="rounded-full bg-gold-100 p-4 mb-4">
+        <Clock className="h-12 w-12 text-gold-600" />
+      </div>
+      <h1 className="text-2xl font-bold text-foreground mb-2">
+        무통장입금 신청 완료
+      </h1>
+      <p className="text-muted-foreground text-center mb-6 max-w-sm">
+        입금이 확인되면 자동으로 결제 완료 처리됩니다.
+      </p>
+
+      {/* 입금 정보 요약 */}
+      <div className="w-full max-w-sm rounded-xl border bg-card p-5 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <Building2 className="h-4 w-4 text-navy-500" />
+          <span className="text-sm font-bold text-foreground">입금 계좌 정보</span>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">은행</span>
+            <span className="font-medium">신한은행</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">계좌번호</span>
+            <span className="font-medium">110-210-910967</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">예금주</span>
+            <span className="font-medium">박지희</span>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center mb-8 max-w-sm">
+        마이페이지에서 입금 확인 상태를 확인하실 수 있습니다.
+      </p>
+
       <div className="flex gap-3">
         <Link
-          href={`/seminars/${params.id}/register`}
-          className="inline-flex items-center justify-center rounded-lg bg-gold-500 text-navy-900 font-medium text-sm px-6 py-3 hover:bg-gold-400 transition-colors gap-1"
+          href="/my"
+          className="inline-flex items-center justify-center rounded-lg bg-gold-500 text-navy-900 font-medium text-sm px-6 py-3 hover:bg-gold-400 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
-          다시 시도하기
+          마이페이지로 이동
         </Link>
         <Link
           href={`/seminars/${params.id}`}

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { calculatePrice } from "@/lib/price-calculator";
 import { getCancellationRules } from "@/lib/cancellation-rules";
-import { generateOrderId, cancelPayment } from "@/lib/toss-payments";
+import { generateOrderId, createOrder } from "@/lib/payaction";
 
 // POST /api/seminars/:id/register — 세미나 신청
 export async function POST(
@@ -68,7 +68,7 @@ export async function POST(
   // 유저 tier 조회
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { tier: true },
+    select: { tier: true, name: true, email: true },
   });
 
   if (!user) {
@@ -158,6 +158,9 @@ export async function POST(
   // 무료 세미나인지 확인
   const isFree = priceResult.finalPrice === 0;
 
+  // 유료 세미나 주문번호 미리 생성
+  const orderId = !isFree && status !== "WAITLISTED" ? generateOrderId() : null;
+
   // 트랜잭션: Registration 생성 + Payment 생성 + (프로모션 사용횟수 증가)
   const registration = await prisma.$transaction(async (tx) => {
     // 이전에 취소/환불된 레코드가 있으면 삭제 후 재생성
@@ -194,13 +197,14 @@ export async function POST(
     });
 
     // 유료 세미나 + 대기자가 아닌 경우: Payment 레코드 생성
-    if (!isFree && status !== "WAITLISTED") {
+    if (!isFree && status !== "WAITLISTED" && orderId) {
       await tx.payment.create({
         data: {
           registrationId: reg.id,
           seminarId,
-          tossOrderId: generateOrderId(),
+          orderId: orderId,
           amount: priceResult.finalPrice,
+          method: "BANK_TRANSFER",
           status: "PENDING",
         },
       });
@@ -226,12 +230,25 @@ export async function POST(
     });
   });
 
+  // 유료 세미나: 페이액션 주문 생성 (입금 자동확인용)
+  if (!isFree && status !== "WAITLISTED" && orderId) {
+    const payactionResult = await createOrder({
+      orderNumber: orderId,
+      amount: priceResult.finalPrice,
+      userName: user.name || "회원",
+      userEmail: user.email || undefined,
+    });
+    if (!payactionResult.success) {
+      console.error("페이액션 주문 생성 실패:", payactionResult.message);
+    }
+  }
+
   const message =
     status === "WAITLISTED"
       ? `대기 신청이 완료되었습니다. (대기 순번: ${waitlistNumber}번)`
       : isFree
         ? "세미나 신청이 완료되었습니다."
-        : "세미나 신청이 완료되었습니다. 결제를 진행해주세요.";
+        : "세미나 신청이 완료되었습니다. 무통장입금을 진행해주세요.";
 
   return NextResponse.json({ registration, message }, { status: 201 });
 }
@@ -304,33 +321,12 @@ export async function DELETE(
     return NextResponse.json({ error: rules.reason }, { status: 400 });
   }
 
-  // 결제 완료 상태에서 환불이 필요한 경우
+  // 결제 완료 상태에서 환불이 필요한 경우 (무통장입금: 수동 환불)
   const payment = registration.payment;
   const needsRefund =
     payment &&
     payment.status === "COMPLETED" &&
-    payment.tossPaymentKey &&
     rules.refundPercent > 0;
-
-  if (needsRefund) {
-    const cancelAmount =
-      rules.refundPercent === 100
-        ? undefined // 전액환불
-        : Math.floor((payment.amount * rules.refundPercent) / 100); // 부분환불
-
-    const cancelResult = await cancelPayment(
-      payment.tossPaymentKey!,
-      `세미나 취소 (환불 ${rules.refundPercent}%)`,
-      cancelAmount,
-    );
-
-    if (!cancelResult.success) {
-      return NextResponse.json(
-        { error: cancelResult.message || "환불 처리에 실패했습니다." },
-        { status: 500 },
-      );
-    }
-  }
 
   const updated = await prisma.$transaction(async (tx) => {
     const newStatus = needsRefund ? "REFUNDED" : "CANCELLED";

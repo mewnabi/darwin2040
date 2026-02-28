@@ -405,10 +405,10 @@ model Payment {
   seminarId         String
   seminar           Seminar       @relation(fields: [seminarId], references: [id])
 
-  // 토스페이먼츠
-  tossPaymentKey    String?       @unique
-  tossOrderId       String?       @unique
-  method            String?       // CARD, EASY_PAY, TRANSFER 등
+  // 결제 정보
+  paymentKey        String?       @unique @map("tossPaymentKey")
+  orderId           String?       @unique @map("tossOrderId")
+  method            String?       // BANK_TRANSFER 등
 
   amount            Int
   status            PaymentStatus @default(PENDING)
