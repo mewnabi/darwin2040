@@ -1,0 +1,527 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// 사용자 및 인증
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  CHAPTER_LEAD
+  MEMBER
+  ASSOCIATE
+  GUEST
+}
+
+enum MemberTier {
+  REGULAR    // 정회원 (월 50,000원)
+  ASSOCIATE  // 준회원
+  VIP        // VIP (월 100,000원)
+  GUEST      // 게스트
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  name            String
+  phone           String?
+  kakaoId         String?   @unique
+  passwordHash    String?
+  profileImage    String?
+  role            UserRole  @default(MEMBER)
+  tier            MemberTier @default(ASSOCIATE)
+
+  // 사업 정보 (회원 프로필)
+  businessName    String?
+  businessType    String?   // 업종
+  businessStage   String?   // 예비창업/초기/성장기/성숙기
+
+  // 인구통계 (보조금 보고용)
+  birthYear       Int?
+  gender          String?
+  region          String?   // 시/도
+  isYouthFounder  Boolean   @default(false)  // 만 39세 이하 청년 창업자
+
+  // 지부
+  chapterId       String?
+  chapter         Chapter?  @relation(fields: [chapterId], references: [id])
+
+  // 관계
+  accounts        Account[]
+  sessions        Session[]
+  registrations   Registration[]
+  attendances     Attendance[]
+  surveyResponses SurveyResponse[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ─────────────────────────────────────────────
+// 지부 (Chapter)
+// ─────────────────────────────────────────────
+
+model Chapter {
+  id        String    @id @default(cuid())
+  name      String    // 예: "서울 본부", "부산 지부"
+  region    String    // 시/도
+  address   String?
+  leadId    String?   // 지부장 User ID
+  isActive  Boolean   @default(true)
+
+  users     User[]
+  seminars  Seminar[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("chapters")
+}
+
+// ─────────────────────────────────────────────
+// 세미나
+// ─────────────────────────────────────────────
+
+enum SeminarType {
+  MAIN_GAME     // 본 게임 (격주 전체 세미나)
+  SPINUP_GAME   // 스핀업 게임 (소그룹 세션)
+  SPECIAL       // 특별 세미나
+}
+
+enum SeminarStatus {
+  DRAFT
+  PUBLISHED     // 공개 (신청 가능)
+  CLOSED        // 신청 마감
+  IN_PROGRESS   // 진행 중
+  COMPLETED     // 완료
+  CANCELLED     // 취소
+}
+
+model Seminar {
+  id              String         @id @default(cuid())
+  title           String
+  description     String?        @db.Text
+  type            SeminarType
+  status          SeminarStatus  @default(DRAFT)
+
+  // 일시 및 장소
+  startAt         DateTime
+  endAt           DateTime
+  venue           String?        // 오프라인 장소
+  venueAddress    String?
+  onlineLink      String?        // 온라인 참여 링크
+
+  // 정원 및 가격
+  maxCapacity     Int            @default(30)
+  basePrice       Int            @default(0)     // 기본가 (원)
+  regularDiscount Int            @default(20)    // 정회원 할인율 (%)
+  vipDiscount     Int            @default(40)    // VIP 할인율 (%)
+  earlyBirdDays   Int            @default(7)     // 얼리버드 기준 (일)
+  earlyBirdRate   Int            @default(10)    // 얼리버드 할인율 (%)
+
+  // 연사
+  speakerId       String?
+  speaker         Speaker?       @relation(fields: [speakerId], references: [id])
+  lectureContent  LectureContent?
+
+  // 콘텐츠 카테고리
+  category        String?        // STRATEGY, NETWORKING, AI_TECH, LIFESTYLE
+  thumbnailUrl    String?
+
+  // 지부
+  chapterId       String?
+  chapter         Chapter?       @relation(fields: [chapterId], references: [id])
+
+  // QR 출석
+  qrCode          String?        @unique
+  qrValidFrom     DateTime?
+  qrValidUntil    DateTime?
+
+  // 관계
+  registrations   Registration[]
+  attendances     Attendance[]
+  payments        Payment[]
+  surveys         Survey[]
+  evidences       Evidence[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("seminars")
+}
+
+// ─────────────────────────────────────────────
+// 연사 (Speaker) — ★NEW
+// ─────────────────────────────────────────────
+
+enum SpeakerStatus {
+  CANDIDATE       // 섭외 후보
+  CONFIRMED       // 섭외 확정
+  INFO_REQUESTED  // 정보수집 요청
+  INFO_SUBMITTED  // 정보 제출 완료
+  INFO_REVIEWING  // 검토 중
+  APPROVED        // 승인 완료
+  ARCHIVED        // 보관 (비활성)
+}
+
+model Speaker {
+  id              String         @id @default(cuid())
+  status          SpeakerStatus  @default(CANDIDATE)
+
+  // 기본 정보 (FR-601)
+  name            String
+  email           String?
+  phone           String?
+  profileImageUrl String?
+  title           String?        // 직함
+  organization    String?        // 소속 기관/회사명
+
+  // 경력/학력
+  education       String?        // 학력 (대학/전공)
+  career          String?        @db.Text  // 주요 경력 (JSON array)
+  expertise       String[]       // 전문 분야 태그
+
+  // SNS/미디어
+  linkedinUrl     String?
+  youtubeUrl      String?
+  instagramUrl    String?
+  websiteUrl      String?
+
+  // 연사 포털 토큰
+  portalToken     String?        @unique
+  portalTokenExp  DateTime?
+
+  // 관계
+  company         SpeakerCompany?
+  contracts       SpeakerContract[]
+  seminars        Seminar[]
+  lectureContents LectureContent[]
+
+  // 관리
+  assignedTo      String?        // 담당 운영자 ID
+  notes           String?        @db.Text  // 내부 메모
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("speakers")
+}
+
+// 연사 법인 정보 (FR-601)
+model SpeakerCompany {
+  id              String    @id @default(cuid())
+  speakerId       String    @unique
+  speaker         Speaker   @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+
+  companyName     String               // 법인명
+  establishedAt   DateTime?            // 설립일
+  representative  String?              // 대표자
+  address         String?              // 주소
+  businessType    String?              // 업종
+
+  // 제품/서비스
+  products        String?   @db.Text   // JSON: [{name, description}]
+
+  // 사업 실적 (연도별)
+  financials      String?   @db.Text   // JSON: [{year, revenue, operatingProfit, profitRate}]
+
+  // 자격/인증
+  patents         String?              // 특허
+  copyrights      String?              // 저작권
+  certifications  String?              // 벤처인증, 연구소 등
+  awards          String?   @db.Text   // 수상이력
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("speaker_companies")
+}
+
+// 강의 콘텐츠 (FR-602)
+model LectureContent {
+  id              String    @id @default(cuid())
+  speakerId       String
+  speaker         Speaker   @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  seminarId       String    @unique
+  seminar         Seminar   @relation(fields: [seminarId], references: [id], onDelete: Cascade)
+
+  // 강의 콘텐츠 구조 (엑셀 '강의 요약과 학습' 기반)
+  lectureTitle    String                // 강의 제목
+  businessMotivation String? @db.Text   // 사업 시작 동기
+  marketEnvironment  String? @db.Text   // 사업 환경과 기회
+  successFactors     String? @db.Text   // 핵심 성공 요인 (JSON array, 3~5개)
+  businessModel      String? @db.Text   // 비즈니스 모델 설명
+  foundingStory      String? @db.Text   // 창업/성장 스토리
+  keyMessages        String? @db.Text   // 학습 핵심 메시지 (JSON array, 3~5개)
+
+  // 카테고리
+  category        String?              // STRATEGY, NETWORKING, AI_TECH, LIFESTYLE
+
+  // 첨부자료
+  presentationUrl String?              // 발표자료 (PPT/PDF)
+  attachments     String?   @db.Text   // JSON: [{name, url, type}]
+
+  // 상태
+  status          String    @default("DRAFT")  // DRAFT, SUBMITTED, REVIEWING, APPROVED
+  reviewComment   String?   @db.Text           // 운영팀 검토 코멘트
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("lecture_contents")
+}
+
+// 연사 계약 (FR-606)
+model SpeakerContract {
+  id              String    @id @default(cuid())
+  speakerId       String
+  speaker         Speaker   @relation(fields: [speakerId], references: [id], onDelete: Cascade)
+  seminarId       String?
+
+  fee             Int       @default(0)      // 강연료 (원)
+  paymentTerms    String?                    // 결제 조건 (사전/사후)
+  transportSupport Boolean  @default(false)  // 교통비 지원
+  lodgingSupport  Boolean   @default(false)  // 숙박비 지원
+
+  // 정산
+  settlementStatus String   @default("PENDING")  // PENDING, PROCESSING, COMPLETED
+  settledAt       DateTime?
+
+  // 계약서
+  contractFileUrl String?
+
+  // 정산 정보 (암호화 저장)
+  bankInfo        String?                    // 암호화된 계좌 정보
+  taxInvoice      Boolean   @default(false)  // 세금계산서 발행 여부
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("speaker_contracts")
+}
+
+// ─────────────────────────────────────────────
+// 신청 및 결제
+// ─────────────────────────────────────────────
+
+enum RegistrationStatus {
+  PENDING         // 신청 완료 (결제 대기)
+  PAID            // 결제 완료
+  WAITLISTED      // 대기자
+  PROMOTED        // 대기→승격 (결제 대기)
+  CANCELLED       // 취소
+  REFUNDED        // 환불 완료
+  NO_SHOW         // 미참석
+}
+
+model Registration {
+  id              String             @id @default(cuid())
+  userId          String
+  user            User               @relation(fields: [userId], references: [id])
+  seminarId       String
+  seminar         Seminar            @relation(fields: [seminarId], references: [id])
+
+  status          RegistrationStatus @default(PENDING)
+  waitlistNumber  Int?               // 대기 순번
+
+  // 가격
+  originalPrice   Int                @default(0)
+  discountAmount  Int                @default(0)
+  finalPrice      Int                @default(0)
+  discountDetail  String?            // JSON: [{type, rate, amount}]
+  promotionCode   String?
+
+  // 시간
+  registeredAt    DateTime           @default(now())
+  cancelledAt     DateTime?
+  promotedAt      DateTime?          // 대기→승격 시각
+
+  payment         Payment?
+
+  @@unique([userId, seminarId])
+  @@map("registrations")
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  PARTIALLY_REFUNDED
+  FULLY_REFUNDED
+  CANCELLED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  registrationId    String        @unique
+  registration      Registration  @relation(fields: [registrationId], references: [id])
+  seminarId         String
+  seminar           Seminar       @relation(fields: [seminarId], references: [id])
+
+  // 토스페이먼츠
+  tossPaymentKey    String?       @unique
+  tossOrderId       String?       @unique
+  method            String?       // CARD, EASY_PAY, TRANSFER 등
+
+  amount            Int
+  status            PaymentStatus @default(PENDING)
+
+  // 환불
+  refundAmount      Int           @default(0)
+  refundReason      String?
+  refundedAt        DateTime?
+
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@map("payments")
+}
+
+model Promotion {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  discountType    String    // PERCENTAGE, FIXED
+  discountValue   Int       // 할인율(%) 또는 할인금액(원)
+  maxUses         Int?
+  currentUses     Int       @default(0)
+  seminarId       String?   // 특정 세미나 한정 (null이면 전체)
+  validFrom       DateTime
+  validUntil      DateTime
+  isActive        Boolean   @default(true)
+
+  createdAt       DateTime  @default(now())
+
+  @@map("promotions")
+}
+
+// ─────────────────────────────────────────────
+// 출석
+// ─────────────────────────────────────────────
+
+enum AttendanceMethod {
+  QR
+  MANUAL
+}
+
+model Attendance {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id])
+  seminarId   String
+  seminar     Seminar          @relation(fields: [seminarId], references: [id])
+
+  method      AttendanceMethod @default(QR)
+  checkedInAt DateTime         @default(now())
+  memo        String?          // 수동 출석 시 사유
+
+  @@unique([userId, seminarId])
+  @@map("attendances")
+}
+
+// ─────────────────────────────────────────────
+// 만족도 설문
+// ─────────────────────────────────────────────
+
+model Survey {
+  id          String           @id @default(cuid())
+  seminarId   String
+  seminar     Seminar          @relation(fields: [seminarId], references: [id])
+
+  title       String           @default("세미나 만족도 조사")
+  isActive    Boolean          @default(true)
+
+  responses   SurveyResponse[]
+
+  createdAt   DateTime         @default(now())
+
+  @@map("surveys")
+}
+
+model SurveyResponse {
+  id                String   @id @default(cuid())
+  surveyId          String
+  survey            Survey   @relation(fields: [surveyId], references: [id])
+  userId            String
+  user              User     @relation(fields: [userId], references: [id])
+
+  // 5점 척도 (1~5)
+  overallRating     Int      // 전반 만족도
+  contentRating     Int      // 콘텐츠 유용성
+  networkingRating  Int      // 네트워킹 효과
+  applicabilityRating Int    // 비즈니스 적용 의향
+  npsScore          Int      // NPS (0~10)
+
+  freeComment       String?  @db.Text
+
+  createdAt         DateTime @default(now())
+
+  @@unique([surveyId, userId])
+  @@map("survey_responses")
+}
+
+// ─────────────────────────────────────────────
+// 증빙자료 (보조금 보고용)
+// ─────────────────────────────────────────────
+
+model Evidence {
+  id          String   @id @default(cuid())
+  seminarId   String
+  seminar     Seminar  @relation(fields: [seminarId], references: [id])
+
+  type        String   // PHOTO, ATTENDANCE_SHEET, SURVEY_RESULT, OTHER
+  fileUrl     String
+  fileName    String
+  description String?
+
+  uploadedAt  DateTime @default(now())
+
+  @@map("evidences")
+}
