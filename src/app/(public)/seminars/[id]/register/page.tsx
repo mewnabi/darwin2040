@@ -180,6 +180,7 @@ export default function SeminarRegisterPage({
           orderName={seminar.title}
           customerName={user?.name || undefined}
           seminarId={seminar.id}
+          orderId={registrationData.payment.orderId || undefined}
         />
       </div>
     );

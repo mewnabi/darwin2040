@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Users, Clock, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Users, Clock, CheckCircle, XCircle, AlertTriangle, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -23,6 +23,7 @@ import {
 import { StatusBadge } from "@/components/common/status-badge";
 import { PaymentStatusBadge } from "@/components/payments/payment-status";
 import { TableSkeleton } from "@/components/common/loading-skeleton";
+import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import {
   REGISTRATION_STATUS_LABELS,
@@ -81,7 +82,10 @@ export default function RegistrationsPage({
 }: {
   params: { id: string };
 }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery<RegistrationData>({
     queryKey: ["seminar-registrations", params.id, statusFilter],
@@ -92,6 +96,33 @@ export default function RegistrationsPage({
       return res.json();
     },
   });
+
+  const confirmMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      const res = await fetch("/api/payments/confirm-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "입금 확인에 실패했습니다.");
+      return json;
+    },
+    onSuccess: (data) => {
+      toast({ title: data.message });
+      setConfirmingId(null);
+      queryClient.invalidateQueries({ queryKey: ["seminar-registrations"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: err.message, variant: "destructive" });
+      setConfirmingId(null);
+    },
+  });
+
+  const handleConfirm = (paymentId: string) => {
+    setConfirmingId(paymentId);
+    confirmMutation.mutate(paymentId);
+  };
 
   const statCards = data
     ? [
@@ -185,6 +216,7 @@ export default function RegistrationsPage({
                 <TableHead className="text-right">결제 금액</TableHead>
                 <TableHead>결제일시</TableHead>
                 <TableHead>신청일시</TableHead>
+                <TableHead>액션</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -241,11 +273,6 @@ export default function RegistrationsPage({
                           -{formatCurrency(reg.discountAmount)}
                         </p>
                       )}
-                      {reg.promotionCode && (
-                        <p className="text-xs text-muted-foreground">
-                          프로모: {reg.promotionCode}
-                        </p>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -253,6 +280,22 @@ export default function RegistrationsPage({
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDateTime(reg.registeredAt)}
+                  </TableCell>
+                  <TableCell>
+                    {reg.payment && reg.payment.status === "PENDING" && (
+                      <button
+                        onClick={() => handleConfirm(reg.payment!.id)}
+                        disabled={confirmingId === reg.payment.id}
+                        className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-800 font-medium transition-colors disabled:opacity-50"
+                      >
+                        {confirmingId === reg.payment.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle className="h-3.5 w-3.5" />
+                        )}
+                        입금 확인
+                      </button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

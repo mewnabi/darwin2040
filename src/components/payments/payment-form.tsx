@@ -10,6 +10,7 @@ interface PaymentFormProps {
   orderName: string;
   customerName?: string;
   seminarId: string;
+  orderId?: string;
 }
 
 const BANK_INFO = {
@@ -23,9 +24,13 @@ export function PaymentForm({
   orderName,
   customerName,
   seminarId,
+  orderId,
 }: PaymentFormProps) {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [depositorName, setDepositorName] = useState(customerName || "");
+  const [updating, setUpdating] = useState(false);
+  const [nameConfirmed, setNameConfirmed] = useState(false);
 
   const handleCopyAccount = async () => {
     try {
@@ -35,6 +40,22 @@ export function PaymentForm({
     } catch {
       // clipboard API 미지원 시 무시
     }
+  };
+
+  const handleConfirmName = async () => {
+    if (!depositorName.trim() || !orderId) return;
+    setUpdating(true);
+    try {
+      await fetch("/api/payments/update-depositor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, depositorName: depositorName.trim() }),
+      });
+    } catch {
+      // 실패해도 진행 가능 (수동 확인 가능)
+    }
+    setUpdating(false);
+    setNameConfirmed(true);
   };
 
   return (
@@ -86,10 +107,42 @@ export function PaymentForm({
             <span className="text-lg font-bold text-gold-600">{formatCurrency(amount)}</span>
           </div>
 
-          {/* 입금자명 */}
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">입금자명</span>
-            <span className="font-medium text-foreground">{customerName || "-"}</span>
+          {/* 입금자명 입력 */}
+          <div className="space-y-1.5">
+            <label className="text-sm text-muted-foreground">입금자명</label>
+            {nameConfirmed ? (
+              <div className="flex justify-between items-center">
+                <span className="font-medium text-foreground text-sm">{depositorName}</span>
+                <button
+                  type="button"
+                  onClick={() => setNameConfirmed(false)}
+                  className="text-xs text-navy-500 hover:text-navy-700"
+                >
+                  수정
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={depositorName}
+                  onChange={(e) => setDepositorName(e.target.value)}
+                  placeholder="실제 입금하실 통장 예금주명"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                />
+                <button
+                  type="button"
+                  onClick={handleConfirmName}
+                  disabled={!depositorName.trim() || updating}
+                  className="shrink-0 h-9 px-3 rounded-md bg-navy-500 text-white text-sm font-medium hover:bg-navy-600 disabled:opacity-50 transition-colors"
+                >
+                  {updating ? "..." : "확인"}
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              송금하는 통장의 예금주명을 정확히 입력해주세요. 자동 입금확인에 사용됩니다.
+            </p>
           </div>
         </div>
 
@@ -105,7 +158,7 @@ export function PaymentForm({
           입금 후 자동으로 확인됩니다
         </p>
         <p className="text-xs text-gold-700">
-          위 계좌로 정확한 금액을 입금해주세요. 입금자명이 회원 이름과 일치해야 자동 확인이 가능합니다.
+          위 계좌로 정확한 금액을 입금해주세요.
           입금 확인까지 몇 분 소요될 수 있습니다.
         </p>
       </div>
