@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-const PAYACTION_WEBHOOK_KEY = process.env.PAYACTION_WEBHOOK_KEY || "";
-const PAYACTION_MALL_ID = process.env.PAYACTION_MALL_ID || "";
+const PAYACTION_WEBHOOK_KEY = (process.env.PAYACTION_WEBHOOK_KEY || "").trim();
+const PAYACTION_MALL_ID = (process.env.PAYACTION_MALL_ID || "").trim();
 
 // POST /api/payments/payaction-webhook — 페이액션 매칭완료 웹훅
 export async function POST(request: NextRequest) {

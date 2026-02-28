@@ -1,8 +1,8 @@
 // 페이액션 무통장입금 자동확인 유틸리티
 
 const PAYACTION_API_BASE = "https://api.payaction.app";
-const PAYACTION_API_KEY = process.env.PAYACTION_API_KEY || "";
-const PAYACTION_MALL_ID = process.env.PAYACTION_MALL_ID || "";
+const PAYACTION_API_KEY = (process.env.PAYACTION_API_KEY || "").trim();
+const PAYACTION_MALL_ID = (process.env.PAYACTION_MALL_ID || "").trim();
 
 /** PayAction용 주문번호 생성 (22자 이하) */
 export function generateOrderId(): string {
